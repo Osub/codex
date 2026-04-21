@@ -84,31 +84,28 @@ pub(crate) fn resolve_provider_auth(
     auth: Option<&CodexAuth>,
     provider: &ModelProviderInfo,
 ) -> codex_protocol::error::Result<SharedAuthProvider> {
+    if let Some(auth) = bearer_auth_for_provider(provider)? {
+        return Ok(Arc::new(auth));
+    }
+
+    Ok(match auth {
+        Some(auth) => auth_provider_from_auth(auth),
+        None => Arc::new(BearerAuthProvider::empty()),
+    })
+}
+
+fn bearer_auth_for_provider(
+    provider: &ModelProviderInfo,
+) -> codex_protocol::error::Result<Option<BearerAuthProvider>> {
     if let Some(api_key) = provider.api_key()? {
-        return Ok(Arc::new(BearerAuthProvider {
-            token: Some(api_key),
-            account_id: None,
-            is_fedramp_account: false,
-        }));
+        return Ok(Some(BearerAuthProvider::new(api_key)));
     }
 
     if let Some(token) = provider.experimental_bearer_token.clone() {
-        return Ok(Arc::new(BearerAuthProvider {
-            token: Some(token),
-            account_id: None,
-            is_fedramp_account: false,
-        }));
+        return Ok(Some(BearerAuthProvider::new(token)));
     }
 
-    let Some(auth) = auth else {
-        return Ok(Arc::new(BearerAuthProvider {
-            token: None,
-            account_id: None,
-            is_fedramp_account: false,
-        }));
-    };
-
-    Ok(auth_provider_from_auth(auth))
+    Ok(None)
 }
 
 /// Builds request-header auth for a first-party Codex auth snapshot.
