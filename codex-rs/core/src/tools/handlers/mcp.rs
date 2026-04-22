@@ -36,9 +36,9 @@ impl ToolHandler for McpHandler {
     fn post_tool_use_payload(
         &self,
         invocation: &ToolInvocation,
-        result: &dyn ToolOutput,
+        result: &Self::Output,
     ) -> Option<PostToolUsePayload> {
-        let ToolPayload::Mcp { raw_arguments, .. } = &invocation.payload else {
+        let ToolPayload::Mcp { .. } = &invocation.payload else {
             return None;
         };
 
@@ -46,7 +46,7 @@ impl ToolHandler for McpHandler {
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
         Some(PostToolUsePayload {
             tool_name: invocation.tool_name.display(),
-            tool_input: mcp_hook_tool_input(raw_arguments),
+            tool_input: result.tool_input.clone(),
             tool_response,
         })
     }
@@ -88,7 +88,8 @@ impl ToolHandler for McpHandler {
         .await;
 
         Ok(McpToolOutput {
-            result,
+            result: result.result,
+            tool_input: result.tool_input,
             wall_time: started.elapsed(),
             original_image_detail_supported: can_request_original_image_detail(&turn.model_info),
         })
@@ -166,6 +167,11 @@ mod tests {
                 is_error: None,
                 meta: None,
             },
+            tool_input: json!({
+                "path": {
+                    "file_id": "file_123"
+                }
+            }),
             wall_time: Duration::from_millis(42),
             original_image_detail_supported: true,
         };
@@ -185,7 +191,11 @@ mod tests {
             ),
             Some(PostToolUsePayload {
                 tool_name: "mcp__filesystem__read_file".to_string(),
-                tool_input: json!({ "path": "/tmp/notes.txt" }),
+                tool_input: json!({
+                    "path": {
+                        "file_id": "file_123"
+                    }
+                }),
                 tool_response: json!({
                     "content": [{
                         "type": "text",

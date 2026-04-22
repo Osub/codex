@@ -214,7 +214,7 @@ impl ToolHandler for ShellHandler {
     fn post_tool_use_payload(
         &self,
         invocation: &ToolInvocation,
-        result: &dyn ToolOutput,
+        result: &Self::Output,
     ) -> Option<PostToolUsePayload> {
         let tool_response =
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
@@ -327,7 +327,7 @@ impl ToolHandler for ShellCommandHandler {
     fn post_tool_use_payload(
         &self,
         invocation: &ToolInvocation,
-        result: &dyn ToolOutput,
+        result: &Self::Output,
     ) -> Option<PostToolUsePayload> {
         let tool_response =
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;

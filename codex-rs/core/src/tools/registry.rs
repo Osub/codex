@@ -70,7 +70,7 @@ pub trait ToolHandler: Send + Sync {
     fn post_tool_use_payload(
         &self,
         _invocation: &ToolInvocation,
-        _result: &dyn ToolOutput,
+        _result: &Self::Output,
     ) -> Option<PostToolUsePayload> {
         None
     }
@@ -105,6 +105,7 @@ pub(crate) struct AnyToolResult {
     pub(crate) call_id: String,
     pub(crate) payload: ToolPayload,
     pub(crate) result: Box<dyn ToolOutput>,
+    pub(crate) post_tool_use_payload: Option<PostToolUsePayload>,
 }
 
 impl AnyToolResult {
@@ -146,12 +147,6 @@ trait AnyToolHandler: Send + Sync {
 
     fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload>;
 
-    fn post_tool_use_payload(
-        &self,
-        invocation: &ToolInvocation,
-        result: &dyn ToolOutput,
-    ) -> Option<PostToolUsePayload>;
-
     fn create_diff_consumer(&self) -> Option<Box<dyn ToolArgumentDiffConsumer>>;
 
     fn handle_any<'a>(
@@ -176,14 +171,6 @@ where
         ToolHandler::pre_tool_use_payload(self, invocation)
     }
 
-    fn post_tool_use_payload(
-        &self,
-        invocation: &ToolInvocation,
-        result: &dyn ToolOutput,
-    ) -> Option<PostToolUsePayload> {
-        ToolHandler::post_tool_use_payload(self, invocation, result)
-    }
-
     fn create_diff_consumer(&self) -> Option<Box<dyn ToolArgumentDiffConsumer>> {
         ToolHandler::create_diff_consumer(self)
     }
@@ -195,11 +182,14 @@ where
         Box::pin(async move {
             let call_id = invocation.call_id.clone();
             let payload = invocation.payload.clone();
-            let output = self.handle(invocation).await?;
+            let output = self.handle(invocation.clone()).await?;
+            let post_tool_use_payload =
+                ToolHandler::post_tool_use_payload(self, &invocation, &output);
             Ok(AnyToolResult {
                 call_id,
                 payload,
                 result: Box::new(output),
+                post_tool_use_payload,
             })
         })
     }
@@ -391,9 +381,9 @@ impl ToolRegistry {
         emit_metric_for_tool_read(&invocation, success).await;
         let post_tool_use_payload = if success {
             let guard = response_cell.lock().await;
-            guard.as_ref().and_then(|result| {
-                handler.post_tool_use_payload(&invocation, result.result.as_ref())
-            })
+            guard
+                .as_ref()
+                .and_then(|result| result.post_tool_use_payload.clone())
         } else {
             None
         };
