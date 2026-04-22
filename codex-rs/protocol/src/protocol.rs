@@ -4421,11 +4421,14 @@ mod tests {
 
     #[test]
     fn workspace_write_reserves_missing_preserved_paths_under_configured_writable_roots() {
-        let cwd = TempDir::new().expect("tempdir");
-        let extra = TempDir::new().expect("extra writable root");
-        let expected_cwd = AbsolutePathBuf::from_absolute_path(cwd.path()).expect("absolute cwd");
+        let root = TempDir::new().expect("tempdir");
+        let cwd = root.path().join("cwd");
+        let extra = root.path().join("extra");
+        std::fs::create_dir_all(&cwd).expect("create cwd");
+        std::fs::create_dir_all(&extra).expect("create extra writable root");
+        let expected_cwd = AbsolutePathBuf::from_absolute_path(&cwd).expect("absolute cwd");
         let expected_extra =
-            AbsolutePathBuf::from_absolute_path(extra.path()).expect("absolute extra root");
+            AbsolutePathBuf::from_absolute_path(&extra).expect("absolute extra root");
         let policy = SandboxPolicy::WorkspaceWrite {
             writable_roots: vec![expected_extra.clone()],
             read_only_access: ReadOnlyAccess::Restricted {
@@ -4438,7 +4441,7 @@ mod tests {
         };
 
         assert_eq!(
-            sorted_writable_roots(policy.get_writable_roots_with_cwd(cwd.path())),
+            sorted_writable_roots(policy.get_writable_roots_with_cwd(&cwd)),
             vec![
                 (
                     expected_cwd.to_path_buf(),

@@ -1520,7 +1520,15 @@ mod tests {
 
         assert_empty_file_bound_without_perms(&args.args, &blocked);
         assert_eq!(args.preserved_files.len(), 1);
-        assert_eq!(synthetic_mount_target_paths(&args), vec![blocked.clone()]);
+        assert_eq!(
+            synthetic_mount_target_paths(&args),
+            vec![
+                workspace.join(".git"),
+                workspace.join(".agents"),
+                workspace.join(".codex"),
+                blocked.clone(),
+            ]
+        );
         assert!(
             !blocked.exists(),
             "missing path mask should not materialize host-side preserved paths at arg construction time",
@@ -1550,7 +1558,14 @@ mod tests {
         let dot_git_str = path_to_string(&dot_git);
 
         assert_empty_file_bound_without_perms(&args.args, &dot_git);
-        assert_eq!(synthetic_mount_target_paths(&args), vec![dot_git.clone()]);
+        assert_eq!(
+            synthetic_mount_target_paths(&args),
+            vec![
+                dot_git.clone(),
+                workspace.join(".agents"),
+                workspace.join(".codex"),
+            ]
+        );
         assert!(
             !args
                 .args
@@ -1679,6 +1694,9 @@ mod tests {
                 PathBuf::from("/.git"),
                 PathBuf::from("/.agents"),
                 PathBuf::from("/.codex"),
+                PathBuf::from("/dev/.git"),
+                PathBuf::from("/dev/.agents"),
+                PathBuf::from("/dev/.codex"),
             ]
         );
         let null_fd = args.preserved_files[0].as_raw_fd().to_string();
@@ -1706,13 +1724,22 @@ mod tests {
                 null_fd.clone(),
                 "/.agents".to_string(),
                 "--ro-bind-data".to_string(),
-                null_fd,
+                null_fd.clone(),
                 "/.codex".to_string(),
                 // Rebind /dev after the root bind so device nodes remain
                 // writable/usable inside the writable root.
                 "--bind".to_string(),
                 "/dev".to_string(),
                 "/dev".to_string(),
+                "--ro-bind-data".to_string(),
+                null_fd.clone(),
+                "/dev/.git".to_string(),
+                "--ro-bind-data".to_string(),
+                null_fd.clone(),
+                "/dev/.agents".to_string(),
+                "--ro-bind-data".to_string(),
+                null_fd,
+                "/dev/.codex".to_string(),
             ]
         );
     }
