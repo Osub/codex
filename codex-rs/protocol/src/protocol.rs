@@ -1278,17 +1278,13 @@ impl SandboxPolicy {
                 }
 
                 // For each root, compute subpaths that should remain read-only.
-                let cwd_root = AbsolutePathBuf::from_absolute_path(cwd).ok();
                 roots
                     .into_iter()
                     .map(|writable_root| {
-                        let protect_missing_preserved_paths = cwd_root
-                            .as_ref()
-                            .is_some_and(|cwd_root| cwd_root == &writable_root);
                         WritableRoot {
                             read_only_subpaths: default_read_only_subpaths_for_writable_root(
                                 &writable_root,
-                                protect_missing_preserved_paths,
+                                /*protect_missing_preserved_paths*/ true,
                             ),
                             root: writable_root,
                         }
@@ -4328,6 +4324,15 @@ mod tests {
         let expected_docs_public =
             AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public"))
                 .expect("canonical docs/public");
+        let expected_docs_public_dot_agents =
+            AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public/.agents"))
+                .expect("canonical docs/public/.agents");
+        let expected_docs_public_dot_codex =
+            AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public/.codex"))
+                .expect("canonical docs/public/.codex");
+        let expected_docs_public_dot_git =
+            AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public/.git"))
+                .expect("canonical docs/public/.git");
         let expected_dot_codex = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".codex"))
             .expect("canonical .codex");
         let expected_dot_git = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".git"))
@@ -4365,7 +4370,14 @@ mod tests {
                         expected_docs.to_path_buf()
                     ],
                 ),
-                (expected_docs_public.to_path_buf(), Vec::new()),
+                (
+                    expected_docs_public.to_path_buf(),
+                    vec![
+                        expected_docs_public_dot_agents.to_path_buf(),
+                        expected_docs_public_dot_codex.to_path_buf(),
+                        expected_docs_public_dot_git.to_path_buf(),
+                    ],
+                ),
             ]
         );
     }
@@ -4404,6 +4416,47 @@ mod tests {
                     expected_dot_git.to_path_buf()
                 ],
             )]
+        );
+    }
+
+    #[test]
+    fn workspace_write_reserves_missing_preserved_paths_under_configured_writable_roots() {
+        let cwd = TempDir::new().expect("tempdir");
+        let extra = TempDir::new().expect("extra writable root");
+        let expected_cwd = AbsolutePathBuf::from_absolute_path(cwd.path()).expect("absolute cwd");
+        let expected_extra =
+            AbsolutePathBuf::from_absolute_path(extra.path()).expect("absolute extra root");
+        let policy = SandboxPolicy::WorkspaceWrite {
+            writable_roots: vec![expected_extra.clone()],
+            read_only_access: ReadOnlyAccess::Restricted {
+                include_platform_defaults: false,
+                readable_roots: vec![],
+            },
+            network_access: false,
+            exclude_tmpdir_env_var: true,
+            exclude_slash_tmp: true,
+        };
+
+        assert_eq!(
+            sorted_writable_roots(policy.get_writable_roots_with_cwd(cwd.path())),
+            vec![
+                (
+                    expected_cwd.to_path_buf(),
+                    vec![
+                        expected_cwd.join(".agents").to_path_buf(),
+                        expected_cwd.join(".codex").to_path_buf(),
+                        expected_cwd.join(".git").to_path_buf()
+                    ],
+                ),
+                (
+                    expected_extra.to_path_buf(),
+                    vec![
+                        expected_extra.join(".agents").to_path_buf(),
+                        expected_extra.join(".codex").to_path_buf(),
+                        expected_extra.join(".git").to_path_buf()
+                    ],
+                ),
+            ]
         );
     }
 
