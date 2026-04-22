@@ -1,4 +1,5 @@
 mod auth;
+mod catalog;
 mod mantle;
 
 use std::sync::Arc;
@@ -11,9 +12,11 @@ use codex_model_provider_info::ModelProviderAwsAuthInfo;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::error::Result;
 
+use crate::model_catalog::ProviderModelCatalog;
 use crate::provider::ModelProvider;
 use auth::resolve_provider_auth;
 use auth::resolve_region;
+use catalog::static_model_catalog;
 use mantle::base_url;
 
 /// Runtime provider for Amazon Bedrock's OpenAI-compatible Mantle endpoint.
@@ -46,6 +49,10 @@ impl ModelProvider for AmazonBedrockModelProvider {
 
     async fn api_auth(&self) -> Result<SharedAuthProvider> {
         resolve_provider_auth(&self.aws).await
+    }
+
+    fn static_model_catalog(&self) -> Option<ProviderModelCatalog> {
+        Some(static_model_catalog())
     }
 }
 

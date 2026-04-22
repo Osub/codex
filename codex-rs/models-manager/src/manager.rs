@@ -17,16 +17,25 @@ use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_login::collect_auth_env_telemetry;
 use codex_login::default_client::build_reqwest_client;
+use codex_model_provider::ProviderModelCatalog;
+use codex_model_provider::ProviderModelMetadata;
 use codex_model_provider::SharedModelProvider;
 use codex_model_provider::create_model_provider;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_otel::TelemetryAuthMode;
 use codex_protocol::config_types::CollaborationModeMask;
+use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CoreResult;
+use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelPreset;
+use codex_protocol::openai_models::ModelVisibility;
 use codex_protocol::openai_models::ModelsResponse;
+use codex_protocol::openai_models::ReasoningEffort;
+use codex_protocol::openai_models::ReasoningEffortPreset;
+use codex_protocol::openai_models::TruncationPolicyConfig;
+use codex_protocol::openai_models::WebSearchToolType;
 use codex_response_debug_context::extract_response_debug_context;
 use codex_response_debug_context::telemetry_transport_error_message;
 use http::HeaderMap;
@@ -217,6 +226,11 @@ impl ModelsManager {
         provider_info: ModelProviderInfo,
     ) -> Self {
         let model_provider = create_model_provider(provider_info, Some(auth_manager));
+        let model_catalog = model_catalog.or_else(|| {
+            model_provider
+                .static_model_catalog()
+                .map(provider_catalog_to_models_response)
+        });
         let cache_path = codex_home.join(MODEL_CACHE_FILE);
         let cache_manager = ModelsCacheManager::new(cache_path, DEFAULT_MODEL_CACHE_TTL);
         let catalog_mode = if model_catalog.is_some() {
@@ -598,6 +612,76 @@ impl ModelsManager {
             &[]
         };
         Self::construct_model_info_from_candidates(model, candidates, config)
+    }
+}
+
+fn provider_catalog_to_models_response(catalog: ProviderModelCatalog) -> ModelsResponse {
+    ModelsResponse {
+        models: catalog
+            .models
+            .into_iter()
+            .map(provider_metadata_to_model_info)
+            .collect(),
+    }
+}
+
+fn provider_metadata_to_model_info(metadata: ProviderModelMetadata) -> ModelInfo {
+    let visibility = if metadata.hidden {
+        ModelVisibility::Hide
+    } else {
+        ModelVisibility::List
+    };
+    ModelInfo {
+        slug: metadata.slug,
+        display_name: metadata.display_name,
+        description: metadata.description,
+        default_reasoning_level: Some(metadata.default_reasoning_effort),
+        supported_reasoning_levels: metadata
+            .supported_reasoning_efforts
+            .into_iter()
+            .map(reasoning_effort_preset)
+            .collect(),
+        shell_type: ConfigShellToolType::ShellCommand,
+        visibility,
+        supported_in_api: true,
+        priority: metadata.priority,
+        additional_speed_tiers: Vec::new(),
+        availability_nux: None,
+        upgrade: None,
+        base_instructions: model_info::BASE_INSTRUCTIONS.to_string(),
+        model_messages: None,
+        supports_reasoning_summaries: true,
+        default_reasoning_summary: ReasoningSummary::None,
+        support_verbosity: false,
+        default_verbosity: None,
+        apply_patch_tool_type: None,
+        web_search_tool_type: WebSearchToolType::Text,
+        truncation_policy: TruncationPolicyConfig::tokens(/*limit*/ 10_000),
+        supports_parallel_tool_calls: true,
+        supports_image_detail_original: false,
+        context_window: Some(metadata.context_window),
+        max_context_window: Some(metadata.context_window),
+        auto_compact_token_limit: None,
+        effective_context_window_percent: 95,
+        experimental_supported_tools: Vec::new(),
+        input_modalities: metadata.input_modalities,
+        used_fallback_model_metadata: false,
+        supports_search_tool: false,
+    }
+}
+
+fn reasoning_effort_preset(effort: ReasoningEffort) -> ReasoningEffortPreset {
+    ReasoningEffortPreset {
+        effort,
+        description: match effort {
+            ReasoningEffort::None => "No reasoning",
+            ReasoningEffort::Minimal => "Minimal reasoning",
+            ReasoningEffort::Low => "Fast responses with lighter reasoning",
+            ReasoningEffort::Medium => "Balances speed and reasoning depth for everyday tasks",
+            ReasoningEffort::High => "Greater reasoning depth for complex problems",
+            ReasoningEffort::XHigh => "Extra high reasoning depth for complex problems",
+        }
+        .to_string(),
     }
 }
 

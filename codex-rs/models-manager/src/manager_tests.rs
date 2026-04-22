@@ -8,6 +8,7 @@ use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_model_provider_info::WireApi;
 use codex_protocol::config_types::ModelProviderAuthInfo;
+use codex_protocol::openai_models::InputModality;
 use codex_protocol::openai_models::ModelsResponse;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use core_test_support::responses::mount_models_once;
@@ -106,6 +107,61 @@ fn provider_for(base_url: String) -> ModelProviderInfo {
         requires_openai_auth: false,
         supports_websockets: false,
     }
+}
+
+#[tokio::test]
+async fn amazon_bedrock_uses_static_catalog_without_fetching_models() {
+    let server = MockServer::start().await;
+    let codex_home = tempdir().expect("temp dir");
+    let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("unused"));
+    let mut provider = ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None);
+    provider.base_url = Some(format!("{}/v1", server.uri()));
+    let manager = ModelsManager::with_provider_for_tests(
+        codex_home.path().to_path_buf(),
+        auth_manager,
+        provider,
+    );
+
+    let available = manager.list_models(RefreshStrategy::Online).await;
+    let model_ids = available
+        .iter()
+        .map(|model| model.model.as_str())
+        .collect::<Vec<_>>();
+    let requests = server.received_requests().await.unwrap_or_default();
+
+    assert_eq!(
+        model_ids,
+        vec!["openai.gpt-oss-120b-1:0", "openai.gpt-oss-20b-1:0"]
+    );
+    assert_eq!(available[0].is_default, true);
+    assert_eq!(available[0].input_modalities, vec![InputModality::Text]);
+    assert_eq!(requests.len(), 0);
+}
+
+#[tokio::test]
+async fn configured_model_catalog_overrides_amazon_bedrock_static_catalog() {
+    let codex_home = tempdir().expect("temp dir");
+    let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("unused"));
+    let provider = ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None);
+    let custom_model = remote_model(
+        "custom-bedrock-model",
+        "Custom Bedrock",
+        /*priority*/ 0,
+    );
+    let manager = ModelsManager::new_with_provider(
+        codex_home.path().to_path_buf(),
+        auth_manager,
+        Some(ModelsResponse {
+            models: vec![custom_model],
+        }),
+        CollaborationModesConfig::default(),
+        provider,
+    );
+
+    let available = manager.list_models(RefreshStrategy::Online).await;
+
+    assert_eq!(available.len(), 1);
+    assert_eq!(available[0].model, "custom-bedrock-model");
 }
 
 struct ProviderAuthScript {

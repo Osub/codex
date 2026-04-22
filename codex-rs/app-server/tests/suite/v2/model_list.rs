@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -19,6 +20,21 @@ use tokio::time::timeout;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 const INVALID_REQUEST_ERROR_CODE: i64 = -32600;
+
+fn write_amazon_bedrock_config(codex_home: &Path) -> std::io::Result<()> {
+    std::fs::write(
+        codex_home.join("config.toml"),
+        r#"
+model_provider = "amazon-bedrock"
+model = "openai.gpt-oss-120b-1:0"
+approval_policy = "never"
+sandbox_mode = "read-only"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-1"
+"#,
+    )
+}
 
 fn model_from_preset(preset: &ModelPreset) -> Model {
     Model {
@@ -102,6 +118,46 @@ async fn list_models_returns_all_models_with_large_limit() -> Result<()> {
     let expected_models = expected_visible_models();
 
     assert_eq!(items, expected_models);
+    assert!(next_cursor.is_none());
+    Ok(())
+}
+
+#[tokio::test]
+async fn list_models_returns_amazon_bedrock_static_catalog() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    write_amazon_bedrock_config(codex_home.path())?;
+    let mut mcp = McpProcess::new(codex_home.path()).await?;
+
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
+
+    let request_id = mcp
+        .send_list_models_request(ModelListParams {
+            limit: Some(100),
+            cursor: None,
+            include_hidden: None,
+        })
+        .await?;
+
+    let response: JSONRPCResponse = timeout(
+        DEFAULT_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(request_id)),
+    )
+    .await??;
+
+    let ModelListResponse {
+        data: items,
+        next_cursor,
+    } = to_response::<ModelListResponse>(response)?;
+    let model_ids = items
+        .iter()
+        .map(|item| item.model.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        model_ids,
+        vec!["openai.gpt-oss-120b-1:0", "openai.gpt-oss-20b-1:0"]
+    );
+    assert_eq!(items[0].is_default, true);
     assert!(next_cursor.is_none());
     Ok(())
 }

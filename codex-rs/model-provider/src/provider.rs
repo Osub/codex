@@ -11,6 +11,7 @@ use codex_model_provider_info::ModelProviderInfo;
 use crate::amazon_bedrock::AmazonBedrockModelProvider;
 use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
+use crate::model_catalog::ProviderModelCatalog;
 
 /// Runtime provider abstraction used by model execution.
 ///
@@ -44,6 +45,12 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     async fn api_auth(&self) -> codex_protocol::error::Result<SharedAuthProvider> {
         let auth = self.auth().await;
         resolve_provider_auth(auth.as_ref(), self.info())
+    }
+
+    /// Returns an authoritative static catalog for providers that do not use
+    /// Codex's OpenAI-backed `/models` endpoint.
+    fn static_model_catalog(&self) -> Option<ProviderModelCatalog> {
+        None
     }
 }
 
