@@ -25,6 +25,7 @@ use crate::tools::handlers::normalize_and_validate_additional_permissions;
 use crate::tools::handlers::parse_arguments;
 use crate::tools::handlers::parse_arguments_with_base_path;
 use crate::tools::handlers::resolve_workdir_base_path;
+use crate::tools::hook_names::HookToolName;
 use crate::tools::orchestrator::ToolOrchestrator;
 use crate::tools::registry::PostToolUsePayload;
 use crate::tools::registry::PreToolUsePayload;
@@ -206,7 +207,7 @@ impl ToolHandler for ShellHandler {
 
     fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {
         shell_payload_command(&invocation.payload).map(|command| PreToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": command }),
         })
     }
@@ -220,7 +221,7 @@ impl ToolHandler for ShellHandler {
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
         let command = shell_payload_command(&invocation.payload)?;
         Some(PostToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": command }),
             tool_response,
         })
@@ -319,7 +320,7 @@ impl ToolHandler for ShellCommandHandler {
 
     fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {
         shell_command_payload_command(&invocation.payload).map(|command| PreToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": command }),
         })
     }
@@ -333,7 +334,7 @@ impl ToolHandler for ShellCommandHandler {
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
         let command = shell_command_payload_command(&invocation.payload)?;
         Some(PostToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": command }),
             tool_response,
         })

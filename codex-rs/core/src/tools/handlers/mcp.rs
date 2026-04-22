@@ -8,6 +8,7 @@ use crate::tools::context::McpToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolOutput;
 use crate::tools::context::ToolPayload;
+use crate::tools::hook_names::HookToolName;
 use crate::tools::registry::PostToolUsePayload;
 use crate::tools::registry::PreToolUsePayload;
 use crate::tools::registry::ToolHandler;
@@ -28,7 +29,7 @@ impl ToolHandler for McpHandler {
         };
 
         Some(PreToolUsePayload {
-            tool_name: invocation.tool_name.display(),
+            tool_name: HookToolName::new(invocation.tool_name.display()),
             tool_input: mcp_hook_tool_input(raw_arguments),
         })
     }
@@ -45,7 +46,7 @@ impl ToolHandler for McpHandler {
         let tool_response =
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
         Some(PostToolUsePayload {
-            tool_name: invocation.tool_name.display(),
+            tool_name: HookToolName::new(invocation.tool_name.display()),
             tool_input: result.tool_input.clone(),
             tool_response,
         })
@@ -133,13 +134,14 @@ mod tests {
             McpHandler.pre_tool_use_payload(&ToolInvocation {
                 session: session.into(),
                 turn: turn.into(),
+                cancellation_token: tokio_util::sync::CancellationToken::new(),
                 tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
                 call_id: "call-mcp-pre".to_string(),
                 tool_name: codex_tools::ToolName::namespaced("mcp__memory__", "create_entities"),
                 payload,
             }),
             Some(PreToolUsePayload {
-                tool_name: "mcp__memory__create_entities".to_string(),
+                tool_name: HookToolName::new("mcp__memory__create_entities"),
                 tool_input: json!({
                     "entities": [{
                         "name": "Ada",
@@ -182,6 +184,7 @@ mod tests {
                 &ToolInvocation {
                     session: session.into(),
                     turn: turn.into(),
+                    cancellation_token: tokio_util::sync::CancellationToken::new(),
                     tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
                     call_id: "call-mcp-post".to_string(),
                     tool_name: codex_tools::ToolName::namespaced("mcp__filesystem__", "read_file"),
@@ -190,7 +193,7 @@ mod tests {
                 &output,
             ),
             Some(PostToolUsePayload {
-                tool_name: "mcp__filesystem__read_file".to_string(),
+                tool_name: HookToolName::new("mcp__filesystem__read_file"),
                 tool_input: json!({
                     "path": {
                         "file_id": "file_123"

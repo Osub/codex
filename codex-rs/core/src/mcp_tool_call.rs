@@ -31,6 +31,7 @@ use crate::mcp_tool_approval_templates::RenderedMcpToolApprovalParam;
 use crate::mcp_tool_approval_templates::render_mcp_tool_approval_template;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
+use crate::tools::hook_names::HookToolName;
 use crate::tools::sandboxing::PermissionRequestPayload;
 use codex_analytics::AppInvocation;
 use codex_analytics::InvocationType;
@@ -921,7 +922,7 @@ async fn maybe_request_mcp_tool_approval(
             turn_context,
             call_id,
             PermissionRequestPayload {
-                tool_name: metadata.model_tool_name.clone(),
+                tool_name: HookToolName::new(metadata.model_tool_name.clone()),
                 tool_input: invocation
                     .arguments
                     .clone()

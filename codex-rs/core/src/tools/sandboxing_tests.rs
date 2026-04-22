@@ -1,5 +1,6 @@
 use super::*;
 use crate::sandboxing::SandboxPermissions;
+use crate::tools::hook_names::HookToolName;
 use codex_protocol::protocol::GranularApprovalConfig;
 use codex_protocol::protocol::NetworkAccess;
 use pretty_assertions::assert_eq;
@@ -10,7 +11,7 @@ fn bash_permission_request_payload_omits_missing_description() {
     assert_eq!(
         PermissionRequestPayload::bash("echo hi".to_string(), /*description*/ None),
         PermissionRequestPayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: json!({ "command": "echo hi" }),
         }
     );
@@ -24,7 +25,7 @@ fn bash_permission_request_payload_includes_description_when_present() {
             Some("network-access example.com".to_string()),
         ),
         PermissionRequestPayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: json!({
                 "command": "echo hi",
                 "description": "network-access example.com",

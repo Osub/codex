@@ -128,12 +128,18 @@ pub(crate) async fn run_pending_session_start_hooks(
     .await
 }
 
+/// Runs matching `PreToolUse` hooks before a tool executes.
+///
+/// `tool_name` is the canonical name serialized to hook stdin. Matcher aliases
+/// are internal compatibility names used only for selecting configured hook
+/// handlers.
 pub(crate) async fn run_pre_tool_use_hooks(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
     tool_use_id: String,
-    tool_name: &str,
-    tool_input: &Value,
+    tool_name: String,
+    matcher_aliases: Vec<String>,
+    tool_input: Value,
 ) -> Option<String> {
     let request = PreToolUseRequest {
         session_id: sess.conversation_id,
@@ -142,7 +148,8 @@ pub(crate) async fn run_pre_tool_use_hooks(
         transcript_path: sess.hook_transcript_path().await,
         model: turn_context.model_info.slug.clone(),
         permission_mode: hook_permission_mode(turn_context),
-        tool_name: tool_name.to_string(),
+        tool_name: tool_name.clone(),
+        matcher_aliases,
         tool_use_id,
         tool_input: tool_input.clone(),
     };
@@ -187,7 +194,8 @@ pub(crate) async fn run_permission_request_hooks(
         transcript_path: sess.hook_transcript_path().await,
         model: turn_context.model_info.slug.clone(),
         permission_mode: hook_permission_mode(turn_context),
-        tool_name: payload.tool_name,
+        tool_name: payload.tool_name.name().to_string(),
+        matcher_aliases: payload.tool_name.matcher_aliases().to_vec(),
         run_id_suffix: run_id_suffix.to_string(),
         tool_input: payload.tool_input,
     };
@@ -203,11 +211,18 @@ pub(crate) async fn run_permission_request_hooks(
     decision
 }
 
+/// Runs matching `PostToolUse` hooks after a tool has produced a successful output.
+///
+/// The `tool_name`, matcher aliases, `tool_input`, and `tool_response` values are
+/// already adapted by the tool handler into the stable hook contract. Passing
+/// raw internal tool data here would leak implementation details into user hook
+/// matchers and hook logs.
 pub(crate) async fn run_post_tool_use_hooks(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
     tool_use_id: String,
     tool_name: String,
+    matcher_aliases: Vec<String>,
     tool_input: Value,
     tool_response: Value,
 ) -> PostToolUseOutcome {
@@ -219,6 +234,7 @@ pub(crate) async fn run_post_tool_use_hooks(
         model: turn_context.model_info.slug.clone(),
         permission_mode: hook_permission_mode(turn_context),
         tool_name,
+        matcher_aliases,
         tool_use_id,
         tool_input,
         tool_response,

@@ -17,6 +17,7 @@ use crate::session::tests::make_session_and_context;
 use crate::tools::context::ExecCommandToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
+use crate::tools::hook_names::HookToolName;
 use crate::tools::registry::ToolHandler;
 use crate::turn_diff_tracker::TurnDiffTracker;
 use tokio::sync::Mutex;
@@ -217,7 +218,7 @@ async fn exec_command_pre_tool_use_payload_uses_raw_command() {
             payload,
         }),
         Some(crate::tools::registry::PreToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": "printf exec command" }),
         })
     );
@@ -272,6 +273,7 @@ async fn exec_command_post_tool_use_payload_uses_output_for_noninteractive_one_s
             &ToolInvocation {
                 session: session.into(),
                 turn: turn.into(),
+                cancellation_token: tokio_util::sync::CancellationToken::new(),
                 tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
                 call_id: "call-43".to_string(),
                 tool_name: codex_tools::ToolName::plain("exec_command"),
@@ -280,7 +282,7 @@ async fn exec_command_post_tool_use_payload_uses_output_for_noninteractive_one_s
             &output,
         ),
         Some(crate::tools::registry::PostToolUsePayload {
-            tool_name: "Bash".to_string(),
+            tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": "echo three" }),
             tool_response: serde_json::json!("three"),
         })
@@ -314,6 +316,7 @@ async fn exec_command_post_tool_use_payload_skips_interactive_exec() {
             &ToolInvocation {
                 session: session.into(),
                 turn: turn.into(),
+                cancellation_token: tokio_util::sync::CancellationToken::new(),
                 tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
                 call_id: "call-44".to_string(),
                 tool_name: codex_tools::ToolName::plain("exec_command"),
@@ -352,6 +355,7 @@ async fn exec_command_post_tool_use_payload_skips_running_sessions() {
             &ToolInvocation {
                 session: session.into(),
                 turn: turn.into(),
+                cancellation_token: tokio_util::sync::CancellationToken::new(),
                 tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
                 call_id: "call-45".to_string(),
                 tool_name: codex_tools::ToolName::plain("exec_command"),

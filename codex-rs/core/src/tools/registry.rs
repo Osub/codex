@@ -14,6 +14,7 @@ use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolOutput;
 use crate::tools::context::ToolPayload;
+use crate::tools::hook_names::HookToolName;
 use codex_hooks::HookEvent;
 use codex_hooks::HookEventAfterToolUse;
 use codex_hooks::HookPayload;
@@ -129,14 +130,23 @@ impl AnyToolResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreToolUsePayload {
-    pub(crate) tool_name: String,
+    /// Hook-facing tool name model.
+    ///
+    /// The canonical name is serialized to hook stdin, while aliases are used
+    /// only for matcher compatibility.
+    pub(crate) tool_name: HookToolName,
     pub(crate) tool_input: Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PostToolUsePayload {
-    pub(crate) tool_name: String,
+    /// Hook-facing tool name model.
+    ///
+    /// Keep this aligned with the corresponding pre-use payload so external
+    /// hook consumers can pair events by `tool_use_id`.
+    pub(crate) tool_name: HookToolName,
     pub(crate) tool_input: Value,
+    /// Tool result exposed at `tool_response`.
     pub(crate) tool_response: Value,
 }
 
@@ -319,8 +329,9 @@ impl ToolRegistry {
                 &invocation.session,
                 &invocation.turn,
                 invocation.call_id.clone(),
-                &pre_tool_use_payload.tool_name,
-                &pre_tool_use_payload.tool_input,
+                pre_tool_use_payload.tool_name.name().to_string(),
+                pre_tool_use_payload.tool_name.matcher_aliases().to_vec(),
+                pre_tool_use_payload.tool_input.clone(),
             )
             .await
         {
@@ -383,7 +394,8 @@ impl ToolRegistry {
                     &invocation.session,
                     &invocation.turn,
                     invocation.call_id.clone(),
-                    post_tool_use_payload.tool_name,
+                    post_tool_use_payload.tool_name.name().to_string(),
+                    post_tool_use_payload.tool_name.matcher_aliases().to_vec(),
                     post_tool_use_payload.tool_input,
                     post_tool_use_payload.tool_response,
                 )
