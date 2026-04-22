@@ -309,7 +309,7 @@ pub(crate) async fn handle_mcp_tool_call(
             &tool_name,
             connector_id.as_deref(),
             connector_name.as_deref(),
-            None,
+            /*duration*/ None,
         );
 
         return HandledMcpToolCall {
